@@ -2,7 +2,6 @@ const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
 const dotenv = require('dotenv');
-const ngrok = require('ngrok');
 const fs = require('fs');
 const path = require('path');
 
@@ -24,7 +23,8 @@ mongoose.connect(process.env.MONGO_URI)
   .catch(err => console.error(err));
 
 // Start server
-const PORT = 5000;
+const PORT = process.env.PORT || 5000;
+
 // Serve React frontend build (only in production or after build)
 const clientBuildPath = path.join(__dirname, '..', 'client', 'build');
 if (fs.existsSync(clientBuildPath)) {
@@ -38,21 +38,25 @@ if (fs.existsSync(clientBuildPath)) {
 app.listen(PORT, async () => {
   console.log(`🚀 Backend running at http://localhost:${PORT}`);
 
-  // Start ngrok tunnel
-  const url = await ngrok.connect(PORT);
-  console.log(`🌐 Ngrok tunnel: ${url}`);
+  // Only run ngrok locally
+  if (process.env.NODE_ENV !== 'production') {
+    const ngrok = require('ngrok');
+    const url = await ngrok.connect(PORT);
+    console.log(`🌐 Ngrok tunnel: ${url}`);
 
-  // Update BASE_URL in .env file
-  const envPath = path.join(__dirname, '.env');
-  const envContent = fs.readFileSync(envPath, 'utf-8');
-let updatedEnv;
-if (/^BASE_URL=/m.test(envContent)) {
-  updatedEnv = envContent.replace(/^BASE_URL=.*/m, `BASE_URL=${url}`);
-} else {
-  updatedEnv = envContent + `\nBASE_URL=${url}`;
-}
-
-  fs.writeFileSync(envPath, updatedEnv);
-  process.env.BASE_URL = url; // Update runtime env as well
-  console.log(`✅ BASE_URL updated in .env: ${url}`);
+    // Update BASE_URL in .env file
+    const envPath = path.join(__dirname, '.env');
+    if (fs.existsSync(envPath)) {
+      const envContent = fs.readFileSync(envPath, 'utf-8');
+      let updatedEnv;
+      if (/^BASE_URL=/m.test(envContent)) {
+        updatedEnv = envContent.replace(/^BASE_URL=.*/m, `BASE_URL=${url}`);
+      } else {
+        updatedEnv = envContent + `\nBASE_URL=${url}`;
+      }
+      fs.writeFileSync(envPath, updatedEnv);
+    }
+    process.env.BASE_URL = url; // Update runtime env
+    console.log(`✅ BASE_URL updated in .env: ${url}`);
+  }
 });
